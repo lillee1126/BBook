@@ -1,0 +1,32 @@
+# IDEA 配置文件（必须忽略）
+.idea/
+*.iml
+*.iws
+*.ipr
+codeStyles/
+compiler.xml
+encodings.xml
+jarRepositories.xml
+misc.xml
+workspace.xml
+
+# Maven 编译产物（超大文件夹，必须忽略）
+target/
+build/
+
+# 日志文件
+*.log
+logs/
+
+# 临时文件
+*.tmp
+*.temp
+*.swp
+*.swo
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# 上传的文件（如果是用户上传的资源，建议忽略）
+uploads/
