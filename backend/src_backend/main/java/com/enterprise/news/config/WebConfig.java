@@ -48,7 +48,8 @@ public class WebConfig implements WebMvcConfigurer {
                         "/api/v1/posts/*/comments/*",
                         "/api/v1/posts/*",
                         "/api/v1/users/me",
-                        "/api/v1/files/upload"
+                        "/api/v1/files/upload",
+                        "/api/v1/ai/chat" // 🌟 允许已登录的用户访问 AI 聊天悬浮窗
                 );
     }
 }
