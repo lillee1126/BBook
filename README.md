@@ -1,6 +1,5 @@
-# 新闻发布系统（MongoDB + Vue + Spring Boot）
+# 社交媒体平台（MongoDB + Vue + Spring Boot）
 
-这是按照你的要求实现的完整课程设计工程：
 
 - 数据库：MongoDB
 - 前端：Vue 3 + Vite
