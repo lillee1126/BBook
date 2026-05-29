@@ -17,13 +17,36 @@
       </div>
     </section>
 
-    <section class="section-title profile-title">
-      <h2>{{ isMine ? '我发布的内容' : 'TA 发布的内容' }}</h2>
-      <span>{{ profile.posts.length }} 篇</span>
+    <section class="profile-tabs-nav">
+      <button 
+        class="tab-nav-btn" 
+        :class="{ active: currentTab === 'published' }" 
+        @click="currentTab = 'published'"
+      >
+        {{ isMine ? '我发布的内容' : 'TA 发布的内容' }}
+        <span class="tab-count">({{ profile.posts.length }})</span>
+      </button>
+      
+      <button 
+        v-if="isMine"
+        class="tab-nav-btn" 
+        :class="{ active: currentTab === 'liked' }" 
+        @click="switchTabToLiked"
+      >
+        我的喜欢
+        <span class="tab-count" v-if="likedPosts.length">({{ likedPosts.length }})</span>
+      </button>
     </section>
 
-    <section class="post-grid">
+    <section class="profile-post-grid" v-if="currentTab === 'published'">
       <PostCard v-for="item in profile.posts" :key="item.id" :post="item" />
+      <div v-if="!profile.posts.length" class="empty-state">还没有发布过任何内容，快去记录生活吧~</div>
+    </section>
+
+    <section class="profile-post-grid" v-else-if="currentTab === 'liked'">
+      <PostCard v-for="item in likedPosts" :key="item.id" :post="item" />
+      <div v-if="loadingLiked" class="empty-state">正在拼命加载喜欢内容...</div>
+      <div v-else-if="!likedPosts.length" class="empty-state">这里空空如也，去主页发现喜欢的动态吧 ♥</div>
     </section>
 
     <div v-if="openEditor" class="custom-profile-modal-mask" @click.self="closeEditModal">
@@ -78,7 +101,7 @@
 
 <script setup>
 import { computed, onMounted, reactive, ref, watch } from 'vue'
-import { fetchUserHome, updateMyProfile, uploadLocalFile } from '../api/bbook'
+import { fetchUserHome, updateMyProfile, uploadLocalFile, fetchPosts } from '../api/bbook'
 import { useAuthStore } from '../stores/auth'
 import PostCard from '../components/PostCard.vue'
 
@@ -91,6 +114,10 @@ const profile = ref(null)
 const openEditor = ref(false) 
 const saving = ref(false)
 
+const currentTab = ref('published')
+const likedPosts = ref([])
+const loadingLiked = ref(false)
+
 const form = reactive({
   nickname: '',
   avatar: '',
@@ -100,8 +127,21 @@ const form = reactive({
 
 const isMine = computed(() => authStore.user?.id === props.id)
 
-onMounted(loadProfile)
-watch(() => props.id, loadProfile)
+onMounted(() => {
+  loadProfile()
+  if (isMine.value) {
+    loadLikedPosts() 
+  }
+})
+
+watch(() => props.id, () => {
+  currentTab.value = 'published'
+  likedPosts.value = []
+  loadProfile()
+  if (isMine.value) {
+    loadLikedPosts()
+  }
+})
 
 async function loadProfile() {
   try {
@@ -110,6 +150,25 @@ async function loadProfile() {
     syncForm()
   } catch (error) {
     alert(error.message)
+  }
+}
+
+async function switchTabToLiked() {
+  currentTab.value = 'liked'
+  await loadLikedPosts()
+}
+
+async function loadLikedPosts() {
+  loadingLiked.value = true
+  try {
+    const res = await fetchPosts({ page: 0, size: 100 })
+    if (res.data && res.data.records) {
+      likedPosts.value = res.data.records.filter(post => post.liked)
+    }
+  } catch (error) {
+    console.error('拉取喜欢列表异常:', error)
+  } finally {
+    loadingLiked.value = false
   }
 }
 
@@ -182,7 +241,96 @@ function absoluteUrl(url) {
   width: fit-content;
 }
 
-/* 遮罩背景：半透明加现代磨砂模糊 */
+/* 选项卡样式区 */
+.profile-tabs-nav {
+  display: flex;
+  gap: 32px;
+  border-bottom: 1px solid var(--line);
+  margin: 28px 0 20px;
+  padding-bottom: 2px;
+}
+
+.tab-nav-btn {
+  background: transparent;
+  border: none;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--muted);
+  padding: 8px 4px;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.2s ease;
+}
+
+.tab-nav-btn:hover {
+  color: var(--text);
+}
+
+.tab-nav-btn.active {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.tab-nav-btn.active::after {
+  content: '';
+  position: absolute;
+  bottom: -3px;
+  left: 0;
+  width: 100%;
+  height: 3px;
+  background: var(--primary);
+  border-radius: 999px;
+}
+
+.tab-count {
+  font-size: 14px;
+  font-weight: 500;
+  margin-left: 2px;
+}
+
+/* 🎯 核心技术实现点：绝对固定长宽、拒绝任何自适应形变的刚性布局网格 */
+.profile-post-grid {
+  display: flex;
+  flex-wrap: wrap;       /* 允许超出的卡片整齐向下换行 */
+  gap: 20px;            /* 严格卡片间距 20 像素 */
+  width: 100%;
+  margin-top: 16px;
+}
+
+/* 💡 深度穿透强制改写内部 PostCard 大小，使其永远保持 230px * 320px 的绝对经典尺寸 */
+.profile-post-grid :deep(.post-card) {
+  width: 230px !important;
+  height: 320px !important;
+  flex: 0 0 230px !important; /* 绝对禁止伸展 flex-grow:0, 禁止压缩 flex-shrink:0 */
+  margin-bottom: 0 !important;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 💡 将卡片的媒体区高宽严格锁定，溢出裁剪成标准比例 */
+.profile-post-grid :deep(.post-card__media) {
+  width: 100% !important;
+  height: 230px !important;    /* 媒体展示区调整为标准的正方形区域 */
+  overflow: hidden !important;
+}
+
+.profile-post-grid :deep(.post-card__image),
+.profile-post-grid :deep(.text-note-cover) {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important; /* 维持高质量填满，不发生比例变形 */
+}
+
+/* 💡 底部内容区域大小同样硬性卡死 */
+.profile-post-grid :deep(.post-card__body) {
+  flex: 1 !important;
+  padding: 10px !important;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+/* 弹窗遮罩与常规样式区保持稳定 */
 .custom-profile-modal-mask {
   position: fixed;
   top: 0;
@@ -195,10 +343,8 @@ function absoluteUrl(url) {
   align-items: center;
   justify-content: center;
   z-index: 2000;
-  animation: fadeIn 0.2s ease-out;
 }
 
-/* 居中跳转的精致小编辑卡片页 */
 .custom-profile-modal-window {
   width: 100%;
   max-width: 450px;
@@ -209,7 +355,6 @@ function absoluteUrl(url) {
   flex-direction: column;
   overflow: hidden;
   border: 1px solid #eef2f6;
-  animation: popIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .modal-top-bar {
@@ -231,10 +376,6 @@ function absoluteUrl(url) {
   font-size: 24px;
   color: #999999;
   cursor: pointer;
-  line-height: 1;
-}
-.modal-close-btn:hover {
-  color: #333333;
 }
 
 .modal-center-form {
@@ -252,10 +393,8 @@ function absoluteUrl(url) {
   font-size: 13px;
   font-weight: 600;
   color: #444444;
-  padding-left: 2px;
 }
 
-/* 头像上传行排列调优 */
 .modal-avatar-row {
   display: flex;
   gap: 10px;
@@ -274,7 +413,6 @@ function absoluteUrl(url) {
   padding: 10px 16px;
   border-radius: 8px;
   cursor: pointer;
-  white-space: nowrap;
 }
 .modal-upload-action input[type="file"] {
   position: absolute;
@@ -285,34 +423,15 @@ function absoluteUrl(url) {
   opacity: 0;
   cursor: pointer;
 }
-.modal-upload-action:hover {
-  background: #d0e4ff;
-}
 
 .modal-bottom-actions {
-  padding-top: 8px;
   display: flex;
   justify-content: flex-end;
   gap: 12px;
-}
-.btn-cancel {
-  border-radius: 8px;
-  padding: 8px 16px;
 }
 .btn-save {
   background: #1e80ff !important;
   color: white !important;
   border-radius: 8px;
-  padding: 8px 20px;
-  box-shadow: 0 4px 12px rgba(30,128,255,0.15);
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-@keyframes popIn {
-  from { transform: scale(0.95); opacity: 0; }
-  to { transform: scale(1); opacity: 1; }
 }
 </style>

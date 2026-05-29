@@ -165,7 +165,7 @@ function scrollToBottom() {
 <style scoped>
 .ai-chatbot-container {
   position: fixed;
-  bottom: 24px;
+  bottom: 80px;
   right: 24px;
   z-index: 9999; /* 保持在最顶层 */
   font-family: system-ui, -apple-system, sans-serif;
